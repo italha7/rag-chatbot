@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ur">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -19,7 +19,7 @@
     #api-key-input:focus{border-color:#f0c040}
     #save-key-btn{padding:6px 14px;background:#f0c040;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
     #save-key-btn:hover{opacity:0.85}
-    .key-saved{color:#5aa832;font-size:12px;display:none}
+    .key-saved{color:#5aa832;font-size:12px;display:none;align-items:center;gap:4px}
     #app{display:flex;flex:1;overflow:hidden}
     #sidebar{width:280px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;background:var(--bg2);flex-shrink:0}
     .sidebar-label{padding:12px 14px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
@@ -68,7 +68,7 @@
 <body>
 <header>
   <div class="logo"><i class="ti ti-message-chatbot"></i></div>
-  <div><h1>RAG Chatbot</h1><p>Document paste karo, sawaal poochho</p></div>
+  <div><h1>RAG Chatbot</h1><p>Paste your document, ask anything</p></div>
 </header>
 
 <div id="setup-bar">
@@ -82,23 +82,23 @@
   <div id="sidebar">
     <div class="sidebar-label"><i class="ti ti-file-text" style="margin-right:4px"></i>Knowledge Base</div>
     <div class="doc-wrap">
-      <textarea id="doc-textarea" placeholder="Yahan apna text ya document paste karo...
+      <textarea id="doc-textarea" placeholder="Paste your document or text here...
 
-Misal ke taur par:
-• Koi article ya blog post
-• Product description  
-• Company FAQ
-• Study notes
-• Koi bhi knowledge base text
+For example:
+- Any article or blog post
+- Product description
+- Company FAQ
+- Study notes
+- Any knowledge base content
 
-Phir Load Document dabao!"></textarea>
+Then click Load Document!"></textarea>
     </div>
     <button id="embed-btn" onclick="loadDocument()">
       <i class="ti ti-upload"></i> Load Document
     </button>
     <div id="status-bar">
       <div class="dot" id="status-dot"></div>
-      <span id="status-text">Document abhi load nahi hua</span>
+      <span id="status-text">No document loaded</span>
     </div>
   </div>
 
@@ -107,11 +107,11 @@ Phir Load Document dabao!"></textarea>
       <div class="empty-state" id="empty-state">
         <i class="ti ti-robot"></i>
         <h3>RAG Chatbot Ready</h3>
-        <p>1. Upar API key daalo aur Save karo<br>2. Left mein document paste karo<br>3. Load Document dabao<br>4. Sawaal poochho!</p>
+        <p>1. Enter your API key above and click Save<br>2. Paste your document on the left<br>3. Click Load Document<br>4. Start asking questions!</p>
       </div>
     </div>
     <div id="input-area">
-      <textarea id="user-input" rows="1" placeholder="Sawaal poochho... (Enter = send, Shift+Enter = new line)" onkeydown="handleKey(event)" oninput="autoResize(this)" disabled></textarea>
+      <textarea id="user-input" rows="1" placeholder="Ask a question... (Enter = send, Shift+Enter = new line)" onkeydown="handleKey(event)" oninput="autoResize(this)" disabled></textarea>
       <button id="send-btn" onclick="sendMessage()" disabled><i class="ti ti-send"></i></button>
     </div>
   </div>
@@ -122,17 +122,18 @@ let chunks=[], isReady=false, isThinking=false, ANTHROPIC_KEY='';
 
 function saveKey(){
   const k=document.getElementById('api-key-input').value.trim();
-  if(!k||!k.startsWith('sk-')){alert('Valid API key daalo (sk- se shuru honi chahiye)');return;}
+  if(!k||!k.startsWith('sk-')){alert('Please enter a valid API key (must start with sk-)');return;}
   ANTHROPIC_KEY=k;
   localStorage.setItem('rag_api_key',k);
   document.getElementById('key-saved').style.display='flex';
-  document.getElementById('api-key-input').value='sk-ant-...****';
+  document.getElementById('api-key-input').value='';
+  document.getElementById('api-key-input').placeholder='Key saved ✓ (paste a new one to update)';
   setTimeout(()=>document.getElementById('key-saved').style.display='none',3000);
 }
 
 window.onload=function(){
   const saved=localStorage.getItem('rag_api_key');
-  if(saved){ANTHROPIC_KEY=saved;document.getElementById('api-key-input').placeholder='Key saved ✓ (change karne ke liye paste karo)';}
+  if(saved){ANTHROPIC_KEY=saved;document.getElementById('api-key-input').placeholder='API key saved ✓ (paste a new one to update)';}
 };
 
 function splitIntoChunks(text,size=300,overlap=60){
@@ -159,10 +160,10 @@ function retrieve(query,k=3){
 
 function loadDocument(){
   const text=document.getElementById('doc-textarea').value.trim();
-  if(!text){alert('Pehle kuch text paste karo!');return;}
+  if(!text){alert('Please paste some text first!');return;}
   const btn=document.getElementById('embed-btn'),dot=document.getElementById('status-dot'),st=document.getElementById('status-text');
   btn.disabled=true;btn.innerHTML='<i class="ti ti-loader"></i> Processing...';
-  dot.className='dot loading';st.textContent='Processing...';
+  dot.className='dot loading';st.textContent='Processing document...';
   setTimeout(()=>{
     chunks=splitIntoChunks(text).map(c=>({text:c,vocab:simpleEmbed(c)}));
     isReady=true;
@@ -171,7 +172,7 @@ function loadDocument(){
     document.getElementById('user-input').disabled=false;
     document.getElementById('send-btn').disabled=false;
     const e=document.getElementById('empty-state');if(e)e.remove();
-    addBotMessage('✅ Document load ho gaya! '+chunks.length+' chunks ready. Ab sawaal poochho!',[]);
+    addBotMessage('✅ Document loaded! Split into '+chunks.length+' chunks. Go ahead and ask your questions!',[]);
   },500);
 }
 
@@ -183,7 +184,7 @@ function addBotMessage(text,sources){
   div.appendChild(label);div.appendChild(bubble);
   if(sources&&sources.length>0){
     const box=document.createElement('div');box.className='sources-box';
-    box.innerHTML='<strong><i class="ti ti-search" style="font-size:12px"></i> Retrieved ('+sources.length+' chunks)</strong>';
+    box.innerHTML='<strong><i class="ti ti-search" style="font-size:12px"></i> Retrieved context ('+sources.length+' chunks)</strong>';
     sources.forEach(s=>{const c=document.createElement('div');c.className='source-chunk';c.textContent='"'+s.text.slice(0,130)+(s.text.length>130?'...':'')+'"';box.appendChild(c);});
     div.appendChild(box);
   }
@@ -193,7 +194,8 @@ function addBotMessage(text,sources){
 function addUserMessage(text){
   const msgs=document.getElementById('messages');
   const div=document.createElement('div');div.className='msg user';
-  div.innerHTML='<div class="msg-label">Aap</div><div class="msg-bubble">'+text.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>';
+  div.innerHTML='<div class="msg-label">You</div><div class="msg-bubble">'+text.replace(/</g,'&lt;').replace(/
+/g,'<br>')+'</div>';
   msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
 }
 
@@ -207,8 +209,8 @@ function showThinking(){
 function removeThinking(){const t=document.getElementById('thinking-msg');if(t)t.remove();}
 
 async function sendMessage(){
-  if(!ANTHROPIC_KEY){alert('Pehle API key daalo aur Save karo!');return;}
-  if(!isReady){alert('Pehle document load karo!');return;}
+  if(!ANTHROPIC_KEY){alert('Please enter and save your API key first!');return;}
+  if(!isReady){alert('Please load a document first!');return;}
   if(isThinking)return;
   const input=document.getElementById('user-input');
   const query=input.value.trim();if(!query)return;
@@ -216,8 +218,17 @@ async function sendMessage(){
   isThinking=true;document.getElementById('send-btn').disabled=true;
   addUserMessage(query);showThinking();
   const retrieved=retrieve(query,3);
-  const context=retrieved.length>0?retrieved.map((r,i)=>'['+( i+1)+'] '+r.text).join('\n\n'):'Koi relevant content nahi mila.';
-  const prompt='Aap ek helpful RAG assistant ho. Neeche document ke relevant chunks hain. Sirf in chunks ki information se jawab do. Agar answer nahi milta toh clearly kaho.\n\nRETRIEVED CONTEXT:\n'+context+'\n\nUSER QUESTION: '+query+'\n\nJawab usi language mein do jisme sawaal tha. Concise aur helpful raho.';
+  const context=retrieved.length>0?retrieved.map((r,i)=>'['+(i+1)+'] '+r.text).join('
+
+'):'No relevant content found in the document.';
+  const prompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.
+
+RETRIEVED CONTEXT:
+'+context+'
+
+USER QUESTION: '+query+'
+
+Be concise and helpful.';
   try{
     const res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -225,7 +236,7 @@ async function sendMessage(){
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
     });
     const data=await res.json();
-    const answer=data.content?.map(b=>b.text||'').join('')||'Jawab nahi mil saka. Error: '+(data.error?.message||'Unknown');
+    const answer=data.content?.map(b=>b.text||'').join('')||'Could not get a response. Error: '+(data.error?.message||'Unknown');
     removeThinking();addBotMessage(answer,retrieved);
   }catch(e){removeThinking();addBotMessage('Network error: '+e.message,[]);}
   isThinking=false;document.getElementById('send-btn').disabled=false;
