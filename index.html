@@ -72,8 +72,8 @@
 </header>
 
 <div id="setup-bar">
-  <label><i class="ti ti-key" style="margin-right:4px"></i>Anthropic API Key:</label>
-  <input type="text" id="api-key-input" placeholder="Paste your key here: sk-ant-api03-..." autocomplete="off" />
+  <label><i class="ti ti-key" style="margin-right:4px"></i>Groq API Key:</label>
+  <input type="text" id="api-key-input" placeholder="Paste your Groq key here: gsk_..." autocomplete="off" />
   <button id="save-key-btn" onclick="saveKey()">Save Key</button>
   <span id="key-status"></span>
 </div>
@@ -118,7 +118,7 @@ Then click Load Document!"></textarea>
 </div>
 
 <script>
-let chunks=[], isReady=false, isThinking=false, ANTHROPIC_KEY='';
+let chunks=[], isReady=false, isThinking=false, GROQ_KEY='';
 
 function setKeyStatus(ok, msg){
   const el = document.getElementById('key-status');
@@ -130,17 +130,16 @@ function saveKey(){
   const inp = document.getElementById('api-key-input');
   const k = inp.value.trim();
   if(!k){ setKeyStatus(false, 'Please paste your API key first'); return; }
-  if(!k.startsWith('sk-')){ setKeyStatus(false, 'Invalid key - must start with sk-'); return; }
-  ANTHROPIC_KEY = k;
+  if(!k.startsWith('gsk_')){ setKeyStatus(false, 'Invalid key - Groq keys start with gsk_'); return; }
+  GROQ_KEY = k;
   let stored = false;
   try{
     localStorage.setItem('rag_api_key', k);
-    stored = (localStorage.getItem('rag_api_key') === k); // verify it actually saved
+    stored = (localStorage.getItem('rag_api_key') === k);
   } catch(e){ stored = false; }
   if(stored){
     setKeyStatus(true, '✓ Key saved and ready!');
   } else {
-    // localStorage blocked (incognito / privacy settings) — key still works this session
     setKeyStatus(true, '✓ Key set for this session (browser blocked storage)');
   }
 }
@@ -148,9 +147,9 @@ function saveKey(){
 window.onload = function(){
   try{
     const saved = localStorage.getItem('rag_api_key');
-    if(saved && saved.startsWith('sk-')){
-      ANTHROPIC_KEY = saved;
-      document.getElementById('api-key-input').value = saved; // show it back so user can see it's saved
+    if(saved && saved.startsWith('gsk_')){
+      GROQ_KEY = saved;
+      document.getElementById('api-key-input').value = saved;
       setKeyStatus(true, '✓ Key loaded!');
     }
   } catch(e){}
@@ -159,10 +158,14 @@ window.onload = function(){
 function splitIntoChunks(text, size, overlap){
   size = size||300; overlap = overlap||60;
   var words = text.split(/\s+/).filter(function(w){return w.length>0;});
+  if(words.length <= size){
+    var whole = words.join(' ');
+    return whole.trim().length > 0 ? [whole] : [];
+  }
   var result = []; var i = 0;
   while(i < words.length){
     var chunk = words.slice(i, i+size).join(' ');
-    if(chunk.trim().length > 20) result.push(chunk);
+    if(chunk.trim().length > 0) result.push(chunk);
     i += size - overlap;
   }
   return result;
@@ -235,7 +238,7 @@ function showThinking(){
 function removeThinking(){ var t=document.getElementById('thinking-msg'); if(t)t.remove(); }
 
 async function sendMessage(){
-  if(!ANTHROPIC_KEY){ alert('Please save your API key first!'); return; }
+  if(!GROQ_KEY){ alert('Please save your API key first!'); return; }
   if(!isReady){ alert('Please load a document first!'); return; }
   if(isThinking) return;
   var input=document.getElementById('user-input');
@@ -245,15 +248,27 @@ async function sendMessage(){
   addUserMessage(query); showThinking();
   var retrieved=retrieve(query,3);
   var context=retrieved.length>0?retrieved.map(function(r,i){return'['+(i+1)+'] '+r.text;}).join('\n\n'):'No relevant content found in the document.';
-  var prompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.\n\nRETRIEVED CONTEXT:\n'+context+'\n\nUSER QUESTION: '+query+'\n\nBe concise and helpful.';
+  var systemPrompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.\n\nRETRIEVED CONTEXT:\n'+context;
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
+    var res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
       method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GROQ_KEY},
+      body:JSON.stringify({
+        model:'llama-3.3-70b-versatile',
+        max_tokens:1000,
+        messages:[
+          {role:'system',content:systemPrompt},
+          {role:'user',content:query}
+        ]
+      })
     });
     var data=await res.json();
-    var answer=data.content?data.content.map(function(b){return b.text||'';}).join(''):'Error: '+(data.error?data.error.message:'Unknown error');
+    var answer;
+    if(data.choices && data.choices[0] && data.choices[0].message){
+      answer=data.choices[0].message.content;
+    } else {
+      answer='Error: '+(data.error?data.error.message:'Unknown error');
+    }
     removeThinking(); addBotMessage(answer,retrieved);
   } catch(e){ removeThinking(); addBotMessage('Network error: '+e.message,[]); }
   isThinking=false; document.getElementById('send-btn').disabled=false;
