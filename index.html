@@ -13,13 +13,13 @@
     .logo{width:32px;height:32px;background:var(--purple);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:white;font-size:16px}
     header h1{font-size:15px;font-weight:500}
     header p{font-size:12px;color:var(--text2);margin-top:1px}
-    #setup-bar{background:#1a1500;border-bottom:0.5px solid #3a2e00;padding:8px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+    #setup-bar{background:#1a1500;border-bottom:0.5px solid #3a2e00;padding:10px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
     #setup-bar label{font-size:12px;color:#f0c040;white-space:nowrap}
-    #api-key-input{flex:1;background:#111;border:0.5px solid #3a2e00;border-radius:6px;padding:6px 10px;color:#f0f0f0;font-size:12px;font-family:monospace;outline:none}
+    #api-key-input{flex:1;min-width:200px;background:#111;border:0.5px solid #3a2e00;border-radius:6px;padding:7px 10px;color:#f0f0f0;font-size:12px;font-family:monospace;outline:none}
     #api-key-input:focus{border-color:#f0c040}
-    #save-key-btn{padding:6px 14px;background:#f0c040;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
-    #save-key-btn:hover{opacity:0.85}
-    .key-saved{color:#5aa832;font-size:12px;display:none;align-items:center;gap:4px}
+    #save-key-btn{padding:7px 16px;background:#f0c040;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+    #save-key-btn:hover{background:#ffd700}
+    #key-status{font-size:12px;white-space:nowrap}
     #app{display:flex;flex:1;overflow:hidden}
     #sidebar{width:280px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;background:var(--bg2);flex-shrink:0}
     .sidebar-label{padding:12px 14px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
@@ -73,9 +73,9 @@
 
 <div id="setup-bar">
   <label><i class="ti ti-key" style="margin-right:4px"></i>Anthropic API Key:</label>
-  <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." />
+  <input type="text" id="api-key-input" placeholder="Paste your key here: sk-ant-api03-..." autocomplete="off" />
   <button id="save-key-btn" onclick="saveKey()">Save Key</button>
-  <span class="key-saved" id="key-saved"><i class="ti ti-check"></i> Key saved!</span>
+  <span id="key-status"></span>
 </div>
 
 <div id="app">
@@ -107,7 +107,7 @@ Then click Load Document!"></textarea>
       <div class="empty-state" id="empty-state">
         <i class="ti ti-robot"></i>
         <h3>RAG Chatbot Ready</h3>
-        <p>1. Enter your API key above and click Save<br>2. Paste your document on the left<br>3. Click Load Document<br>4. Start asking questions!</p>
+        <p>1. Paste your API key above and click Save<br>2. Paste your document on the left<br>3. Click Load Document<br>4. Start asking questions!</p>
       </div>
     </div>
     <div id="input-area">
@@ -120,108 +120,128 @@ Then click Load Document!"></textarea>
 <script>
 let chunks=[], isReady=false, isThinking=false, ANTHROPIC_KEY='';
 
-function saveKey(){
-  const k=document.getElementById('api-key-input').value.trim();
-  if(!k||!k.startsWith('sk-')){alert('Please enter a valid API key (must start with sk-)');return;}
-  ANTHROPIC_KEY=k;
-  localStorage.setItem('rag_api_key',k);
-  document.getElementById('key-saved').style.display='flex';
-  document.getElementById('api-key-input').value='';
-  document.getElementById('api-key-input').placeholder='Key saved ✓ (paste a new one to update)';
-  setTimeout(()=>document.getElementById('key-saved').style.display='none',3000);
+function setKeyStatus(ok, msg){
+  const el = document.getElementById('key-status');
+  el.textContent = msg;
+  el.style.color = ok ? '#5aa832' : '#e05050';
 }
 
-window.onload=function(){
-  const saved=localStorage.getItem('rag_api_key');
-  if(saved){ANTHROPIC_KEY=saved;document.getElementById('api-key-input').placeholder='API key saved ✓ (paste a new one to update)';}
+function saveKey(){
+  const inp = document.getElementById('api-key-input');
+  const k = inp.value.trim();
+  if(!k){ setKeyStatus(false, 'Please paste your API key first'); return; }
+  if(!k.startsWith('sk-')){ setKeyStatus(false, 'Invalid key - must start with sk-'); return; }
+  ANTHROPIC_KEY = k;
+  try{ localStorage.setItem('rag_api_key', k); } catch(e){}
+  inp.value = '';
+  inp.placeholder = 'API key saved! Paste a new one to update.';
+  setKeyStatus(true, '✓ Key saved and ready!');
+}
+
+window.onload = function(){
+  try{
+    const saved = localStorage.getItem('rag_api_key');
+    if(saved && saved.startsWith('sk-')){
+      ANTHROPIC_KEY = saved;
+      document.getElementById('api-key-input').placeholder = 'API key loaded from storage. Paste a new one to update.';
+      setKeyStatus(true, '✓ Key loaded!');
+    }
+  } catch(e){}
 };
 
-function splitIntoChunks(text,size=300,overlap=60){
-  const words=text.split(/\s+/).filter(w=>w.length>0);
-  const result=[];let i=0;
-  while(i<words.length){const chunk=words.slice(i,i+size).join(' ');if(chunk.trim().length>20)result.push(chunk);i+=size-overlap;}
+function splitIntoChunks(text, size, overlap){
+  size = size||300; overlap = overlap||60;
+  var words = text.split(/\s+/).filter(function(w){return w.length>0;});
+  var result = []; var i = 0;
+  while(i < words.length){
+    var chunk = words.slice(i, i+size).join(' ');
+    if(chunk.trim().length > 20) result.push(chunk);
+    i += size - overlap;
+  }
   return result;
 }
 
 function simpleEmbed(text){
-  const words=text.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/);
-  const vocab={};
-  words.forEach(w=>{if(w.length>1)vocab[w]=(vocab[w]||0)+1;});
+  var words = text.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/);
+  var vocab = {};
+  for(var i=0;i<words.length;i++){ var w=words[i]; if(w.length>1) vocab[w]=(vocab[w]||0)+1; }
   return vocab;
 }
 
-function sparseScore(qv,cv){let s=0;for(const w in qv){if(cv[w])s+=qv[w]*cv[w];}return s;}
+function sparseScore(qv,cv){ var s=0; for(var w in qv){ if(cv[w]) s+=qv[w]*cv[w]; } return s; }
 
-function retrieve(query,k=3){
-  const qv=simpleEmbed(query);
-  return chunks.map(c=>({text:c.text,score:sparseScore(qv,c.vocab)}))
-    .sort((a,b)=>b.score-a.score).slice(0,k).filter(c=>c.score>0);
+function retrieve(query,k){
+  k=k||3;
+  var qv=simpleEmbed(query);
+  var scored=chunks.map(function(c){return{text:c.text,score:sparseScore(qv,c.vocab)};});
+  scored.sort(function(a,b){return b.score-a.score;});
+  return scored.slice(0,k).filter(function(c){return c.score>0;});
 }
 
 function loadDocument(){
-  const text=document.getElementById('doc-textarea').value.trim();
+  var text=document.getElementById('doc-textarea').value.trim();
   if(!text){alert('Please paste some text first!');return;}
-  const btn=document.getElementById('embed-btn'),dot=document.getElementById('status-dot'),st=document.getElementById('status-text');
-  btn.disabled=true;btn.innerHTML='<i class="ti ti-loader"></i> Processing...';
-  dot.className='dot loading';st.textContent='Processing document...';
-  setTimeout(()=>{
-    chunks=splitIntoChunks(text).map(c=>({text:c,vocab:simpleEmbed(c)}));
+  var btn=document.getElementById('embed-btn'),dot=document.getElementById('status-dot'),st=document.getElementById('status-text');
+  btn.disabled=true; btn.innerHTML='<i class="ti ti-loader"></i> Processing...';
+  dot.className='dot loading'; st.textContent='Processing document...';
+  setTimeout(function(){
+    chunks=splitIntoChunks(text).map(function(c){return{text:c,vocab:simpleEmbed(c)};});
     isReady=true;
-    btn.disabled=false;btn.innerHTML='<i class="ti ti-refresh"></i> Reload Document';
-    dot.className='dot ready';st.textContent=chunks.length+' chunks ready ✓';
+    btn.disabled=false; btn.innerHTML='<i class="ti ti-refresh"></i> Reload Document';
+    dot.className='dot ready'; st.textContent=chunks.length+' chunks ready ✓';
     document.getElementById('user-input').disabled=false;
     document.getElementById('send-btn').disabled=false;
-    const e=document.getElementById('empty-state');if(e)e.remove();
-    addBotMessage('✅ Document loaded! Split into '+chunks.length+' chunks. Go ahead and ask your questions!',[]);
+    var e=document.getElementById('empty-state'); if(e)e.remove();
+    addBotMessage('✅ Document loaded! Split into '+chunks.length+' chunks. Ask your questions!',[]);
   },500);
 }
 
 function addBotMessage(text,sources){
-  const msgs=document.getElementById('messages');
-  const div=document.createElement('div');div.className='msg bot';
-  const label=document.createElement('div');label.className='msg-label';label.textContent='AI';
-  const bubble=document.createElement('div');bubble.className='msg-bubble';bubble.textContent=text;
-  div.appendChild(label);div.appendChild(bubble);
+  var msgs=document.getElementById('messages');
+  var div=document.createElement('div'); div.className='msg bot';
+  var label=document.createElement('div'); label.className='msg-label'; label.textContent='AI';
+  var bubble=document.createElement('div'); bubble.className='msg-bubble'; bubble.textContent=text;
+  div.appendChild(label); div.appendChild(bubble);
   if(sources&&sources.length>0){
-    const box=document.createElement('div');box.className='sources-box';
+    var box=document.createElement('div'); box.className='sources-box';
     box.innerHTML='<strong><i class="ti ti-search" style="font-size:12px"></i> Retrieved context ('+sources.length+' chunks)</strong>';
-    sources.forEach(s=>{const c=document.createElement('div');c.className='source-chunk';c.textContent='"'+s.text.slice(0,130)+(s.text.length>130?'...':'')+'"';box.appendChild(c);});
+    sources.forEach(function(s){var c=document.createElement('div');c.className='source-chunk';c.textContent='"'+s.text.slice(0,130)+(s.text.length>130?'...':'')+'"';box.appendChild(c);});
     div.appendChild(box);
   }
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
 
 function addUserMessage(text){
-  const msgs=document.getElementById('messages');
-  const div=document.createElement('div');div.className='msg user';
+  var msgs=document.getElementById('messages');
+  var div=document.createElement('div'); div.className='msg user';
   div.innerHTML='<div class="msg-label">You</div><div class="msg-bubble">'+text.replace(/</g,'&lt;').replace(/
 /g,'<br>')+'</div>';
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
 
 function showThinking(){
-  const msgs=document.getElementById('messages');
-  const div=document.createElement('div');div.className='msg bot';div.id='thinking-msg';
+  var msgs=document.getElementById('messages');
+  var div=document.createElement('div'); div.className='msg bot'; div.id='thinking-msg';
   div.innerHTML='<div class="msg-label">AI</div><div class="thinking-bubble"><span></span><span></span><span></span></div>';
-  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
 
-function removeThinking(){const t=document.getElementById('thinking-msg');if(t)t.remove();}
+function removeThinking(){ var t=document.getElementById('thinking-msg'); if(t)t.remove(); }
 
 async function sendMessage(){
-  if(!ANTHROPIC_KEY){alert('Please enter and save your API key first!');return;}
-  if(!isReady){alert('Please load a document first!');return;}
-  if(isThinking)return;
-  const input=document.getElementById('user-input');
-  const query=input.value.trim();if(!query)return;
-  input.value='';input.style.height='auto';
-  isThinking=true;document.getElementById('send-btn').disabled=true;
-  addUserMessage(query);showThinking();
-  const retrieved=retrieve(query,3);
-  const context=retrieved.length>0?retrieved.map((r,i)=>'['+(i+1)+'] '+r.text).join('
+  if(!ANTHROPIC_KEY){ alert('Please save your API key first!'); return; }
+  if(!isReady){ alert('Please load a document first!'); return; }
+  if(isThinking) return;
+  var input=document.getElementById('user-input');
+  var query=input.value.trim(); if(!query) return;
+  input.value=''; input.style.height='auto';
+  isThinking=true; document.getElementById('send-btn').disabled=true;
+  addUserMessage(query); showThinking();
+  var retrieved=retrieve(query,3);
+  var context=retrieved.length>0?retrieved.map(function(r,i){return'['+(i+1)+'] '+r.text;}).join('
 
 '):'No relevant content found in the document.';
-  const prompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.
+  var prompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.
 
 RETRIEVED CONTEXT:
 '+context+'
@@ -230,20 +250,20 @@ USER QUESTION: '+query+'
 
 Be concise and helpful.';
   try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
+    var res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
     });
-    const data=await res.json();
-    const answer=data.content?.map(b=>b.text||'').join('')||'Could not get a response. Error: '+(data.error?.message||'Unknown');
-    removeThinking();addBotMessage(answer,retrieved);
-  }catch(e){removeThinking();addBotMessage('Network error: '+e.message,[]);}
-  isThinking=false;document.getElementById('send-btn').disabled=false;
+    var data=await res.json();
+    var answer=data.content?data.content.map(function(b){return b.text||'';}).join(''):'Error: '+(data.error?data.error.message:'Unknown error');
+    removeThinking(); addBotMessage(answer,retrieved);
+  } catch(e){ removeThinking(); addBotMessage('Network error: '+e.message,[]); }
+  isThinking=false; document.getElementById('send-btn').disabled=false;
 }
 
-function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
-function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+function handleKey(e){ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+function autoResize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,120)+'px'; }
 </script>
 </body>
 </html>
