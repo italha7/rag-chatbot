@@ -132,10 +132,17 @@ function saveKey(){
   if(!k){ setKeyStatus(false, 'Please paste your API key first'); return; }
   if(!k.startsWith('sk-')){ setKeyStatus(false, 'Invalid key - must start with sk-'); return; }
   ANTHROPIC_KEY = k;
-  try{ localStorage.setItem('rag_api_key', k); } catch(e){}
-  inp.value = '';
-  inp.placeholder = 'API key saved! Paste a new one to update.';
-  setKeyStatus(true, '✓ Key saved and ready!');
+  let stored = false;
+  try{
+    localStorage.setItem('rag_api_key', k);
+    stored = (localStorage.getItem('rag_api_key') === k); // verify it actually saved
+  } catch(e){ stored = false; }
+  if(stored){
+    setKeyStatus(true, '✓ Key saved and ready!');
+  } else {
+    // localStorage blocked (incognito / privacy settings) — key still works this session
+    setKeyStatus(true, '✓ Key set for this session (browser blocked storage)');
+  }
 }
 
 window.onload = function(){
@@ -143,7 +150,7 @@ window.onload = function(){
     const saved = localStorage.getItem('rag_api_key');
     if(saved && saved.startsWith('sk-')){
       ANTHROPIC_KEY = saved;
-      document.getElementById('api-key-input').placeholder = 'API key loaded from storage. Paste a new one to update.';
+      document.getElementById('api-key-input').value = saved; // show it back so user can see it's saved
       setKeyStatus(true, '✓ Key loaded!');
     }
   } catch(e){}
@@ -214,8 +221,7 @@ function addBotMessage(text,sources){
 function addUserMessage(text){
   var msgs=document.getElementById('messages');
   var div=document.createElement('div'); div.className='msg user';
-  div.innerHTML='<div class="msg-label">You</div><div class="msg-bubble">'+text.replace(/</g,'&lt;').replace(/
-/g,'<br>')+'</div>';
+  div.innerHTML='<div class="msg-label">You</div><div class="msg-bubble">'+text.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>';
   msgs.appendChild(div); msgs.scrollTop=msgs.scrollHeight;
 }
 
@@ -238,17 +244,8 @@ async function sendMessage(){
   isThinking=true; document.getElementById('send-btn').disabled=true;
   addUserMessage(query); showThinking();
   var retrieved=retrieve(query,3);
-  var context=retrieved.length>0?retrieved.map(function(r,i){return'['+(i+1)+'] '+r.text;}).join('
-
-'):'No relevant content found in the document.';
-  var prompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.
-
-RETRIEVED CONTEXT:
-'+context+'
-
-USER QUESTION: '+query+'
-
-Be concise and helpful.';
+  var context=retrieved.length>0?retrieved.map(function(r,i){return'['+(i+1)+'] '+r.text;}).join('\n\n'):'No relevant content found in the document.';
+  var prompt='You are a helpful RAG assistant. Use only the retrieved document chunks below to answer the question. If the answer is not in the context, clearly say so.\n\nRETRIEVED CONTEXT:\n'+context+'\n\nUSER QUESTION: '+query+'\n\nBe concise and helpful.';
   try{
     var res=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
