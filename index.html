@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG Chatbot</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#222;--border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);--text:#f0f0f0;--text2:#999;--text3:#555;--purple:#7c6af7;--radius:12px;--radius-sm:8px}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    header{padding:12px 20px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--bg2);flex-shrink:0}
+    .logo{width:32px;height:32px;background:var(--purple);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:white;font-size:16px}
+    header h1{font-size:15px;font-weight:500}
+    header p{font-size:12px;color:var(--text2);margin-top:1px}
+    #setup-bar{background:#1a1500;border-bottom:0.5px solid #3a2e00;padding:8px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+    #setup-bar label{font-size:12px;color:#f0c040;white-space:nowrap}
+    #api-key-input{flex:1;background:#111;border:0.5px solid #3a2e00;border-radius:6px;padding:6px 10px;color:#f0f0f0;font-size:12px;font-family:monospace;outline:none}
+    #api-key-input:focus{border-color:#f0c040}
+    #save-key-btn{padding:6px 14px;background:#f0c040;color:#000;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+    #save-key-btn:hover{opacity:0.85}
+    .key-saved{color:#5aa832;font-size:12px;display:none}
+    #app{display:flex;flex:1;overflow:hidden}
+    #sidebar{width:280px;border-right:0.5px solid var(--border);display:flex;flex-direction:column;background:var(--bg2);flex-shrink:0}
+    .sidebar-label{padding:12px 14px 8px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em}
+    #doc-textarea{flex:1;resize:none;background:transparent;border:none;color:var(--text);font-size:13px;line-height:1.7;font-family:inherit;outline:none;padding:12px 14px;min-height:0}
+    #doc-textarea::placeholder{color:var(--text3)}
+    .doc-wrap{flex:1;overflow:hidden;display:flex;flex-direction:column}
+    #embed-btn{margin:10px 12px;padding:9px;background:var(--purple);color:white;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s;flex-shrink:0}
+    #embed-btn:hover{opacity:.85}
+    #embed-btn:disabled{opacity:.35;cursor:not-allowed}
+    #status-bar{padding:8px 14px 10px;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:7px;flex-shrink:0}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background .3s}
+    .dot.ready{background:#5aa832}
+    .dot.loading{background:#e8a020;animation:pulse 1s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    #chat-panel{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    #messages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+    .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);text-align:center;gap:8px;padding:40px}
+    .empty-state i{font-size:36px;color:var(--border2)}
+    .empty-state h3{font-size:14px;font-weight:500;color:var(--text2)}
+    .empty-state p{font-size:13px;line-height:1.7}
+    .msg{display:flex;flex-direction:column;gap:3px;max-width:82%}
+    .msg.user{align-self:flex-end;align-items:flex-end}
+    .msg.bot{align-self:flex-start;align-items:flex-start}
+    .msg-label{font-size:11px;color:var(--text3);padding:0 4px}
+    .msg-bubble{padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+    .msg.user .msg-bubble{background:var(--purple);color:white;border-bottom-right-radius:4px}
+    .msg.bot .msg-bubble{background:var(--bg3);color:var(--text);border:0.5px solid var(--border2);border-bottom-left-radius:4px}
+    .sources-box{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;margin-top:4px;max-width:100%}
+    .sources-box strong{color:var(--text2);font-weight:500;display:flex;align-items:center;gap:5px;margin-bottom:5px}
+    .source-chunk{color:var(--text3);font-style:italic;line-height:1.6;padding:4px 0;border-top:0.5px solid var(--border);font-size:11px}
+    .thinking-bubble{background:var(--bg3);border:0.5px solid var(--border2);border-radius:14px;border-bottom-left-radius:4px;padding:12px 16px;display:flex;gap:5px;align-items:center}
+    .thinking-bubble span{width:6px;height:6px;border-radius:50%;background:var(--text3);animation:bounce 1.2s infinite}
+    .thinking-bubble span:nth-child(2){animation-delay:.2s}
+    .thinking-bubble span:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+    #input-area{padding:12px 16px;border-top:0.5px solid var(--border);display:flex;gap:8px;align-items:flex-end;background:var(--bg2);flex-shrink:0}
+    #user-input{flex:1;background:var(--bg3);border:0.5px solid var(--border2);border-radius:var(--radius-sm);padding:10px 14px;color:var(--text);font-size:14px;font-family:inherit;resize:none;outline:none;line-height:1.5;max-height:120px;transition:border-color .15s}
+    #user-input:focus{border-color:var(--purple)}
+    #user-input::placeholder{color:var(--text3)}
+    #send-btn{padding:10px 16px;background:var(--purple);color:white;border:none;border-radius:var(--radius-sm);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px;flex-shrink:0;transition:opacity .15s;height:40px}
+    #send-btn:hover{opacity:.85}
+    #send-btn:disabled{opacity:.3;cursor:not-allowed}
+    @media(max-width:640px){#sidebar{width:100%;height:250px;border-right:none;border-bottom:0.5px solid var(--border)}#app{flex-direction:column}.msg{max-width:92%}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="logo"><i class="ti ti-message-chatbot"></i></div>
+  <div><h1>RAG Chatbot</h1><p>Document paste karo, sawaal poochho</p></div>
+</header>
+
+<div id="setup-bar">
+  <label><i class="ti ti-key" style="margin-right:4px"></i>Anthropic API Key:</label>
+  <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." />
+  <button id="save-key-btn" onclick="saveKey()">Save Key</button>
+  <span class="key-saved" id="key-saved"><i class="ti ti-check"></i> Key saved!</span>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <div class="sidebar-label"><i class="ti ti-file-text" style="margin-right:4px"></i>Knowledge Base</div>
+    <div class="doc-wrap">
+      <textarea id="doc-textarea" placeholder="Yahan apna text ya document paste karo...
+
+Misal ke taur par:
+• Koi article ya blog post
+• Product description  
+• Company FAQ
+• Study notes
+• Koi bhi knowledge base text
+
+Phir Load Document dabao!"></textarea>
+    </div>
+    <button id="embed-btn" onclick="loadDocument()">
+      <i class="ti ti-upload"></i> Load Document
+    </button>
+    <div id="status-bar">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">Document abhi load nahi hua</span>
+    </div>
+  </div>
+
+  <div id="chat-panel">
+    <div id="messages">
+      <div class="empty-state" id="empty-state">
+        <i class="ti ti-robot"></i>
+        <h3>RAG Chatbot Ready</h3>
+        <p>1. Upar API key daalo aur Save karo<br>2. Left mein document paste karo<br>3. Load Document dabao<br>4. Sawaal poochho!</p>
+      </div>
+    </div>
+    <div id="input-area">
+      <textarea id="user-input" rows="1" placeholder="Sawaal poochho... (Enter = send, Shift+Enter = new line)" onkeydown="handleKey(event)" oninput="autoResize(this)" disabled></textarea>
+      <button id="send-btn" onclick="sendMessage()" disabled><i class="ti ti-send"></i></button>
+    </div>
+  </div>
+</div>
+
+<script>
+let chunks=[], isReady=false, isThinking=false, ANTHROPIC_KEY='';
+
+function saveKey(){
+  const k=document.getElementById('api-key-input').value.trim();
+  if(!k||!k.startsWith('sk-')){alert('Valid API key daalo (sk- se shuru honi chahiye)');return;}
+  ANTHROPIC_KEY=k;
+  localStorage.setItem('rag_api_key',k);
+  document.getElementById('key-saved').style.display='flex';
+  document.getElementById('api-key-input').value='sk-ant-...****';
+  setTimeout(()=>document.getElementById('key-saved').style.display='none',3000);
+}
+
+window.onload=function(){
+  const saved=localStorage.getItem('rag_api_key');
+  if(saved){ANTHROPIC_KEY=saved;document.getElementById('api-key-input').placeholder='Key saved ✓ (change karne ke liye paste karo)';}
+};
+
+function splitIntoChunks(text,size=300,overlap=60){
+  const words=text.split(/\s+/).filter(w=>w.length>0);
+  const result=[];let i=0;
+  while(i<words.length){const chunk=words.slice(i,i+size).join(' ');if(chunk.trim().length>20)result.push(chunk);i+=size-overlap;}
+  return result;
+}
+
+function simpleEmbed(text){
+  const words=text.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/);
+  const vocab={};
+  words.forEach(w=>{if(w.length>1)vocab[w]=(vocab[w]||0)+1;});
+  return vocab;
+}
+
+function sparseScore(qv,cv){let s=0;for(const w in qv){if(cv[w])s+=qv[w]*cv[w];}return s;}
+
+function retrieve(query,k=3){
+  const qv=simpleEmbed(query);
+  return chunks.map(c=>({text:c.text,score:sparseScore(qv,c.vocab)}))
+    .sort((a,b)=>b.score-a.score).slice(0,k).filter(c=>c.score>0);
+}
+
+function loadDocument(){
+  const text=document.getElementById('doc-textarea').value.trim();
+  if(!text){alert('Pehle kuch text paste karo!');return;}
+  const btn=document.getElementById('embed-btn'),dot=document.getElementById('status-dot'),st=document.getElementById('status-text');
+  btn.disabled=true;btn.innerHTML='<i class="ti ti-loader"></i> Processing...';
+  dot.className='dot loading';st.textContent='Processing...';
+  setTimeout(()=>{
+    chunks=splitIntoChunks(text).map(c=>({text:c,vocab:simpleEmbed(c)}));
+    isReady=true;
+    btn.disabled=false;btn.innerHTML='<i class="ti ti-refresh"></i> Reload Document';
+    dot.className='dot ready';st.textContent=chunks.length+' chunks ready ✓';
+    document.getElementById('user-input').disabled=false;
+    document.getElementById('send-btn').disabled=false;
+    const e=document.getElementById('empty-state');if(e)e.remove();
+    addBotMessage('✅ Document load ho gaya! '+chunks.length+' chunks ready. Ab sawaal poochho!',[]);
+  },500);
+}
+
+function addBotMessage(text,sources){
+  const msgs=document.getElementById('messages');
+  const div=document.createElement('div');div.className='msg bot';
+  const label=document.createElement('div');label.className='msg-label';label.textContent='AI';
+  const bubble=document.createElement('div');bubble.className='msg-bubble';bubble.textContent=text;
+  div.appendChild(label);div.appendChild(bubble);
+  if(sources&&sources.length>0){
+    const box=document.createElement('div');box.className='sources-box';
+    box.innerHTML='<strong><i class="ti ti-search" style="font-size:12px"></i> Retrieved ('+sources.length+' chunks)</strong>';
+    sources.forEach(s=>{const c=document.createElement('div');c.className='source-chunk';c.textContent='"'+s.text.slice(0,130)+(s.text.length>130?'...':'')+'"';box.appendChild(c);});
+    div.appendChild(box);
+  }
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function addUserMessage(text){
+  const msgs=document.getElementById('messages');
+  const div=document.createElement('div');div.className='msg user';
+  div.innerHTML='<div class="msg-label">Aap</div><div class="msg-bubble">'+text.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function showThinking(){
+  const msgs=document.getElementById('messages');
+  const div=document.createElement('div');div.className='msg bot';div.id='thinking-msg';
+  div.innerHTML='<div class="msg-label">AI</div><div class="thinking-bubble"><span></span><span></span><span></span></div>';
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+
+function removeThinking(){const t=document.getElementById('thinking-msg');if(t)t.remove();}
+
+async function sendMessage(){
+  if(!ANTHROPIC_KEY){alert('Pehle API key daalo aur Save karo!');return;}
+  if(!isReady){alert('Pehle document load karo!');return;}
+  if(isThinking)return;
+  const input=document.getElementById('user-input');
+  const query=input.value.trim();if(!query)return;
+  input.value='';input.style.height='auto';
+  isThinking=true;document.getElementById('send-btn').disabled=true;
+  addUserMessage(query);showThinking();
+  const retrieved=retrieve(query,3);
+  const context=retrieved.length>0?retrieved.map((r,i)=>'['+( i+1)+'] '+r.text).join('\n\n'):'Koi relevant content nahi mila.';
+  const prompt='Aap ek helpful RAG assistant ho. Neeche document ke relevant chunks hain. Sirf in chunks ki information se jawab do. Agar answer nahi milta toh clearly kaho.\n\nRETRIEVED CONTEXT:\n'+context+'\n\nUSER QUESTION: '+query+'\n\nJawab usi language mein do jisme sawaal tha. Concise aur helpful raho.';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:prompt}]})
+    });
+    const data=await res.json();
+    const answer=data.content?.map(b=>b.text||'').join('')||'Jawab nahi mil saka. Error: '+(data.error?.message||'Unknown');
+    removeThinking();addBotMessage(answer,retrieved);
+  }catch(e){removeThinking();addBotMessage('Network error: '+e.message,[]);}
+  isThinking=false;document.getElementById('send-btn').disabled=false;
+}
+
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+</script>
+</body>
+</html>
